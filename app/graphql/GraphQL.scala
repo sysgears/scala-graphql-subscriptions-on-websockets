@@ -16,16 +16,25 @@ class GraphQL @Inject()(postSchema: PostSchema) {
     * We can add queries, mutations, etc. for each model.
     */
   val Schema = sangria.schema.Schema(
-    query = ObjectType("Query",
+    query = ObjectType(
+      "Query",
       fields(
         postSchema.Queries: _*
       )
     ),
-
     mutation = Some(
-      ObjectType("Mutation",
+      ObjectType(
+        "Mutation",
         fields(
           postSchema.Mutations: _*
+        )
+      )
+    ),
+    subscription = Some(
+      ObjectType(
+        "Subscription",
+        fields(
+          postSchema.Subscriptions: _*
         )
       )
     )
