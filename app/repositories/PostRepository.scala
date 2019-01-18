@@ -15,7 +15,7 @@ class PostRepository @Inject()(implicit val executionContext: ExecutionContext) 
 
   val postCollection: mutable.ArrayBuffer[Post] = mutable.ArrayBuffer.empty[Post]
 
-  /** @inheritdoc */
+  /** @inheritdoc*/
   override def create(post: Post): Future[Post] = Future.successful {
     synchronized {
       val newPost = post.copy(
@@ -26,39 +26,37 @@ class PostRepository @Inject()(implicit val executionContext: ExecutionContext) 
     }
   }
 
-  /** @inheritdoc */
+  /** @inheritdoc*/
   override def find(id: Long): Future[Option[Post]] = Future.successful {
-      postCollection.find(_.id.contains(id))
+    postCollection.find(_.id.contains(id))
   }
 
-  /** @inheritdoc */
+  /** @inheritdoc*/
   override def findAll(): Future[List[Post]] = Future.successful {
-      postCollection.toList
+    postCollection.toList
   }
 
-  /** @inheritdoc */
+  /** @inheritdoc*/
   override def update(post: Post): Future[Post] = synchronized {
     post.id match {
       case Some(id) =>
         find(id).flatMap {
-        case Some(foundPost) =>
-          delete(id)
-          postCollection += post
-          Future.successful(post)
-        case _ => Future.failed(new Exception(s"Not found post with id=$id"))
-      }
+          case Some(foundPost) =>
+            delete(id)
+            postCollection += post
+            Future.successful(post)
+          case _ => Future.failed(new Exception(s"Not found post with id=$id"))
+        }
     }
   }
 
-  /** @inheritdoc */
-  override def delete(id: Long): Future[Boolean] = Future.successful {
+  /** @inheritdoc*/
+  override def delete(id: Long): Future[Post] =
     synchronized {
       postCollection.indexWhere(_.id.contains(id)) match {
-        case -1 => false
-        case postIndex =>
-          postCollection.remove(postIndex)
-          true
+        case -1 => Future.failed(new Exception(s"Not found post with id=$id"))
+        case postIndex => Future.successful(postCollection.remove(postIndex))
       }
     }
-  }
+
 }
