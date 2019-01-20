@@ -1,14 +1,17 @@
 package controllers
 
+import akka.actor.{ActorSystem, Props}
+import akka.stream.Materializer
 import akka.stream.scaladsl.Source
 import com.google.inject.{Inject, Singleton}
 import graphql.GraphQL
 import monix.execution.Scheduler
 import play.api.libs.EventSource
 import play.api.libs.json._
+import play.api.libs.streams.ActorFlow
 import play.api.mvc._
 import sangria.ast.Document
-import sangria.ast.OperationType.Subscription
+import sangria.ast.OperationType.{Mutation, Query, Subscription}
 import sangria.execution._
 import sangria.marshalling.playJson._
 import sangria.parser.QueryParser
@@ -20,14 +23,16 @@ import scala.util.{Failure, Success, Try}
 /**
   * Creates an `Action` to handle HTTP requests.
   *
-  * @param graphQL          an object containing a graphql schema of the entire application
-  * @param cc               base controller components dependencies that most controllers rely on.
-  * @param executionContext execute program logic asynchronously, typically but not necessarily on a thread pool
+  * @param graphQL              an object containing a graphql schema of the entire application
+  * @param controllerComponents base controller components dependencies that most controllers rely on.
+  * @param executionContext     execute program logic asynchronously, typically but not necessarily on a thread pool
   */
 @Singleton
-class AppController @Inject()(graphQL: GraphQL, cc: ControllerComponents)
+class AppController @Inject()(graphQL: GraphQL,
+                              controllerComponents: ControllerComponents)
                              (implicit val executionContext: ExecutionContext,
-                              scheduler: Scheduler) extends AbstractController(cc)
+                              as: ActorSystem, scheduler: Scheduler,
+                              mat: Materializer) extends GraphQlHandler(controllerComponents)
   with Logger {
 
   /**
@@ -41,39 +46,23 @@ class AppController @Inject()(graphQL: GraphQL, cc: ControllerComponents)
     * @return an 'Action' to handles a request and generates a result to be sent to the client
     */
   def graphqlBody: Action[JsValue] = Action.async(parse.json) {
-    implicit request: Request[JsValue] =>
-      val extract: JsValue => (String, Option[String], Option[JsObject]) = query =>
-        (
-          (query \ "query").as[String],
-          (query \ "operationName").asOpt[String],
-          (query \ "variables").toOption.flatMap {
-            case JsString(vars) => Some(parseVariables(vars))
-            case obj: JsObject => Some(obj)
-            case _ => None
-          }
-        )
+    request: Request[JsValue] =>
 
-      val maybeQuery: Try[(String, Option[String], Option[JsObject])] = Try {
-        request.body match {
-          case arrayBody@JsArray(_) => extract(arrayBody.value(0))
-          case objectBody@JsObject(_) => extract(objectBody)
-          case otherType =>
-            throw new Error {
-              s"/graphql endpoint does not support request body of type [${otherType.getClass.getSimpleName}]"
-            }
-        }
-      }
-
-      maybeQuery match {
+      parseToGraphQLQuery(request.body) match {
         case Success((query, operationName, variables)) => executeQuery(query, variables, operationName)
-        case Failure(error) =>
-          Future.successful {
-            BadRequest(error.getMessage)
-          }
+        case Failure(error) => Future.successful(BadRequest(error.getMessage))
       }
   }
 
-  def graphqlSubscription: Action[AnyContent] = Action.async {
+  def graphqlSubscriptionOverWebSocket: WebSocket = WebSocket.accept[String, String] {
+    _: RequestHeader =>
+      ActorFlow.actorRef {
+        actorRef =>
+          WebSocketFlowActor.props(actorRef, graphQL, controllerComponents)
+      }
+  }
+
+  def graphqlSubscriptionOverSSE: Action[AnyContent] = Action.async {
     request =>
 
       val queryString: Option[String] = request.getQueryString("query") //todo: check multiple subscriptions in one query
@@ -99,46 +88,41 @@ class AppController @Inject()(graphQL: GraphQL, cc: ControllerComponents)
     */
   def executeQuery(query: String,
                    variables: Option[JsObject] = None,
-                   operation: Option[String] = None): Future[Result] = QueryParser.parse(query) match {
-    case Success(queryAst: Document) => {
-      queryAst.operationType(operation) match {
-        case Some(Subscription) =>
-          import sangria.execution.ExecutionScheme.Stream
-          import sangria.streaming.monix._
+                   operation: Option[String] = None): Future[Result] = {
 
-          val res = Executor.execute(
-            schema = graphQL.Schema,
-            queryAst = queryAst,
-            variables = variables.getOrElse(Json.obj()),
-          )
-          val src = Source.fromPublisher(res.toReactivePublisher)
+    QueryParser.parse(query) match {
+      case Success(queryAst: Document) => {
+        queryAst.operationType(operation) match {
+          case Some(Subscription) =>
+            import sangria.execution.ExecutionScheme.Stream
+            import sangria.streaming.monix._
 
-          Future(Ok.chunked(src via EventSource.flow).as(EVENT_STREAM))
-        case _ =>
-          Executor
-            .execute(
+            val reactivePublisher = Executor.execute(
               schema = graphQL.Schema,
               queryAst = queryAst,
-              variables = variables.getOrElse(Json.obj()),
-            )
-            .map(Ok(_))
-            .recover {
-              case error: QueryAnalysisError => BadRequest(error.resolveError)
-              case error: ErrorWithResolver => InternalServerError(error.resolveError)
-            }
+              variables = variables.getOrElse(Json.obj())
+            ).toReactivePublisher
+
+            val source = Source.fromPublisher(reactivePublisher)
+            Future(Ok.chunked(source via EventSource.flow).as(EVENT_STREAM))
+
+          case Some(Query) | Some(Mutation) =>
+            Executor
+              .execute(
+                schema = graphQL.Schema,
+                queryAst = queryAst,
+                variables = variables.getOrElse(Json.obj())
+              )
+              .map(Ok(_))
+              .recover {
+                case error: QueryAnalysisError => BadRequest(error.resolveError)
+                case error: ErrorWithResolver => InternalServerError(error.resolveError)
+              }
+          case _ => Future(BadRequest("Unsupported graphql operation type"))
+        }
       }
+
+      case Failure(ex) => Future.successful(BadRequest(s"${ex.getMessage}"))
     }
-
-    case Failure(ex) => Future.successful(BadRequest(s"${ex.getMessage}"))
   }
-
-  /**
-    * Parses variables of incoming query.
-    *
-    * @param variables variables from incoming query
-    * @return JsObject with variables
-    */
-  def parseVariables(variables: String): JsObject =
-    if (variables.trim.isEmpty || variables.trim == "null") Json.obj()
-    else Json.parse(variables).as[JsObject]
 }

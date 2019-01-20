@@ -4,10 +4,12 @@
 
 # An example controller showing a sample home page
 
-GET         /                         controllers.AppController.graphiql
+GET         /                                    controllers.AppController.graphiql
 
-POST        /graphql                  controllers.AppController.graphqlBody
+POST        /graphql                             controllers.AppController.graphqlBody
 
-GET         /graphql/subscribe        controllers.AppController.graphqlSubscription
+GET         /graphql/subscribe/sse               controllers.AppController.graphqlSubscriptionOverSSE
 
-GET         /assets/*file             controllers.Assets.versioned(path="/public", file: Asset)
+GET         /graphql/subscribe/websockets        controllers.AppController.graphqlSubscriptionOverWebSocket
+
+GET         /assets/*file                        controllers.Assets.versioned(path="/public", file: Asset)
