@@ -1,12 +1,13 @@
 package graphql.schemas
 
+import akka.stream.Materializer
 import com.google.inject.Inject
 import graphql.resolvers.PostResolver
 import models.Post
 import monix.execution.Scheduler
 import sangria.macros.derive.{ObjectTypeName, deriveObjectType}
 import sangria.schema._
-import sangria.streaming.monix._
+import sangria.streaming.akkaStreams._
 import services.{Event, PubSubService}
 
 /**
@@ -16,9 +17,8 @@ import services.{Event, PubSubService}
   *
   * @param postResolver an object containing all resolve functions to work with the entity of 'Post'
   */
-class PostSchema @Inject()(postResolver: PostResolver, pubSubService: PubSubService[Event[Post]])(
-  implicit scheduler: Scheduler
-) {
+class PostSchema @Inject()(postResolver: PostResolver, pubSubService: PubSubService[Event[Post]])
+                          (implicit scheduler: Scheduler, mat: Materializer) {
 
   /**
     * Convert an Post object to a Sangria graphql object.

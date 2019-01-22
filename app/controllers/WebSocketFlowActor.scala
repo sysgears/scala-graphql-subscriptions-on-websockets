@@ -1,9 +1,9 @@
 package controllers
 
-import akka.actor.{Actor, ActorRef, Props}
+import akka.actor.{Actor, ActorRef, PoisonPill, Props}
+import akka.stream.Materializer
+import akka.stream.scaladsl.{Sink, Source}
 import graphql.GraphQL
-import monix.execution.Scheduler
-import monix.reactive.Observable
 import play.api.libs.json._
 import play.api.mvc.ControllerComponents
 import sangria.ast.Document
@@ -11,20 +11,23 @@ import sangria.ast.OperationType.Subscription
 import sangria.execution.{ErrorWithResolver, Executor, QueryAnalysisError}
 import sangria.marshalling.playJson._
 import sangria.parser.QueryParser
+import sangria.streaming.akkaStreams.AkkaSource
 
 import scala.concurrent.ExecutionContext
 import scala.util.{Failure, Success, Try}
 
 object WebSocketFlowActor {
   def props(outActor: ActorRef, graphQL: GraphQL, controllerComponents: ControllerComponents)
-           (implicit ec: ExecutionContext, scheduler: Scheduler): Props = {
+           (implicit ec: ExecutionContext, mat: Materializer): Props = {
     Props(new WebSocketFlowActor(outActor, graphQL, controllerComponents))
   }
 }
 
-class WebSocketFlowActor(outActor: ActorRef, graphQL: GraphQL,
+class WebSocketFlowActor(outActor: ActorRef,
+                         graphQL: GraphQL,
                          controllerComponents: ControllerComponents)
-                        (implicit ec: ExecutionContext, scheduler: Scheduler)
+                        (implicit ec: ExecutionContext,
+                         mat: Materializer)
   extends GraphQlHandler(controllerComponents) with Actor {
 
   override def receive: Receive = {
@@ -35,38 +38,41 @@ class WebSocketFlowActor(outActor: ActorRef, graphQL: GraphQL,
         case Failure(error) => throw new Error(s"Fail to parse a request body. Reason [$error]")
       }
 
-      val executedQuery: Observable[JsValue] = maybeQuery match {
+      val source: AkkaSource[JsValue] = maybeQuery match {
         case Success((query, operationName, variables)) => executeQuery(query, graphQL, variables, operationName)
-        case Failure(error) => Observable.now(JsString(error.getMessage))
+        case Failure(error) => Source.single(JsString(error.getMessage))
       }
-
-      executedQuery.foreach(m => outActor ! m.toString)
+      source.map(_.toString).runWith(Sink.actorRef[String](outActor, PoisonPill))
   }
 
   def executeQuery(query: String,
                    graphQL: GraphQL,
                    variables: Option[JsObject] = None,
                    operation: Option[String] = None)
-                  (implicit scheduler: Scheduler): Observable[JsValue] = QueryParser.parse(query) match {
+                  (implicit mat: Materializer): AkkaSource[JsValue] = QueryParser.parse(query) match {
 
     case Success(queryAst: Document) =>
       queryAst.operationType(operation) match {
         case Some(Subscription) =>
           import sangria.execution.ExecutionScheme.Stream
-          import sangria.streaming.monix._
+          import sangria.streaming.akkaStreams._
+
           Executor.execute(
             schema = graphQL.Schema,
             queryAst = queryAst,
             variables = variables.getOrElse(Json.obj()),
-          ).onErrorRecover {
+          ).recover {
             case error: QueryAnalysisError => Json.obj("BadRequest" -> error.resolveError)
             case error: ErrorWithResolver => Json.obj("InternalServerError" -> error.resolveError)
           }
-        case _ => Observable.now {
+
+        case _ => Source.single {
           Json.obj("UnsupportedType" -> JsString(s"$operation"))
         }
       }
 
-    case Failure(ex) => Observable.now(Json.obj("BadRequest" -> JsString(s"${ex.getMessage}")))
+    case Failure(ex) => Source.single {
+      Json.obj("BadRequest" -> JsString(s"${ex.getMessage}"))
+    }
   }
 }

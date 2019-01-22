@@ -1,6 +1,7 @@
 package services
 
-import monix.reactive.Observable
+import akka.NotUsed
+import akka.stream.scaladsl.Source
 import sangria.schema.Action
 
 trait PubSubService[T] {
@@ -13,7 +14,7 @@ trait PubSubService[T] {
   /**
     * Subscribe to the event by specified params.
     */
-  def subscribe(eventNames: Seq[String]): Observable[Action[Nothing, T]]
+  def subscribe(eventNames: Seq[String]): Source[Action[Nothing, T], NotUsed]
 }
 
 case class Event[T](name: String, element: T)

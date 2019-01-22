@@ -1,8 +1,7 @@
 package controllers
 
-import akka.actor.{ActorSystem, Props}
+import akka.actor.ActorSystem
 import akka.stream.Materializer
-import akka.stream.scaladsl.Source
 import com.google.inject.{Inject, Singleton}
 import graphql.GraphQL
 import monix.execution.Scheduler
@@ -18,19 +17,19 @@ import sangria.parser.QueryParser
 import utils.Logger
 
 import scala.concurrent.{ExecutionContext, Future}
-import scala.util.{Failure, Success, Try}
+import scala.util.{Failure, Success}
 
 /**
   * Creates an `Action` to handle HTTP requests.
   *
   * @param graphQL              an object containing a graphql schema of the entire application
   * @param controllerComponents base controller components dependencies that most controllers rely on.
-  * @param executionContext     execute program logic asynchronously, typically but not necessarily on a thread pool
+  * @param ec                   execute program logic asynchronously, typically but not necessarily on a thread pool
   */
 @Singleton
 class AppController @Inject()(graphQL: GraphQL,
                               controllerComponents: ControllerComponents)
-                             (implicit val executionContext: ExecutionContext,
+                             (implicit val ec: ExecutionContext,
                               as: ActorSystem, scheduler: Scheduler,
                               mat: Materializer) extends GraphQlHandler(controllerComponents)
   with Logger {
@@ -65,15 +64,12 @@ class AppController @Inject()(graphQL: GraphQL,
   def graphqlSubscriptionOverSSE: Action[AnyContent] = Action.async {
     request =>
 
-      val queryString: Option[String] = request.getQueryString("query") //todo: check multiple subscriptions in one query
-
-      val variables: Option[JsObject] = request.getQueryString("variables").map(parseVariables) //todo: check variables
-
-      val operationType: Option[String] = queryString.map(_.split(" ")).map(_.head)
+      val queryString: Option[String] = request.getQueryString("query")
+      val variables: Option[JsObject] = request.getQueryString("variables").map(parseVariables)
+      val operationType: Option[String] = request.getQueryString("operationName")
 
       queryString match {
-        case Some(query) =>
-          executeQuery(query, variables, operationType)
+        case Some(query) => executeQuery(query, variables, operationType)
         case _ => Future.successful(BadRequest("Request does not contain graphql query"))
       }
   }
@@ -95,15 +91,13 @@ class AppController @Inject()(graphQL: GraphQL,
         queryAst.operationType(operation) match {
           case Some(Subscription) =>
             import sangria.execution.ExecutionScheme.Stream
-            import sangria.streaming.monix._
+            import sangria.streaming.akkaStreams._
 
-            val reactivePublisher = Executor.execute(
+            val source: AkkaSource[JsValue] = Executor.execute(
               schema = graphQL.Schema,
               queryAst = queryAst,
               variables = variables.getOrElse(Json.obj())
-            ).toReactivePublisher
-
-            val source = Source.fromPublisher(reactivePublisher)
+            )
             Future(Ok.chunked(source via EventSource.flow).as(EVENT_STREAM))
 
           case Some(Query) | Some(Mutation) =>

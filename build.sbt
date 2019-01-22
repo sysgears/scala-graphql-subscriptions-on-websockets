@@ -12,6 +12,6 @@ libraryDependencies ++= Seq(
   guice,
   "org.sangria-graphql" %% "sangria-play-json" % "1.0.4",
   "org.sangria-graphql" %% "sangria" % "1.4.1",
-  "org.sangria-graphql" %% "sangria-monix" % "1.0.0",
+  "org.sangria-graphql" %% "sangria-akka-streams" % "1.0.1",
   "io.monix" %% "monix" % "2.3.3"
 )
