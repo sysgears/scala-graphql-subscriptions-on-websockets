@@ -4,7 +4,6 @@ import akka.actor.ActorSystem
 import akka.stream.Materializer
 import com.google.inject.{Inject, Singleton}
 import graphql.GraphQL
-import monix.execution.Scheduler
 import play.api.libs.EventSource
 import play.api.libs.json._
 import play.api.libs.streams.ActorFlow
@@ -25,12 +24,16 @@ import scala.util.{Failure, Success}
   * @param graphQL              an object containing a graphql schema of the entire application
   * @param controllerComponents base controller components dependencies that most controllers rely on.
   * @param ec                   execute program logic asynchronously, typically but not necessarily on a thread pool
+  * @param as                   an actor system is a hierarchical group of actors which share common
+  *                             configuration, e.g. dispatchers, deployments, remote capabilities and
+  *                             addresses. It is also the entry point for creating or looking up actors
+  * @param mat                  an instance of an implementation of Materializer SPI (Service Provider Interface)
   */
 @Singleton
 class AppController @Inject()(graphQL: GraphQL,
                               controllerComponents: ControllerComponents)
                              (implicit val ec: ExecutionContext,
-                              as: ActorSystem, scheduler: Scheduler,
+                              as: ActorSystem,
                               mat: Materializer) extends GraphQlHandler(controllerComponents)
   with Logger {
 
@@ -53,6 +56,12 @@ class AppController @Inject()(graphQL: GraphQL,
       }
   }
 
+  /**
+    * Accepts and processes GraphQL subscription over WebSocket connection
+    *
+    * @return an instance of WebSocket to handles a messages with GraphQL subscription
+    *         and generates a result to be sent to the client
+    */
   def graphqlSubscriptionOverWebSocket: WebSocket = WebSocket.accept[String, String] {
     _: RequestHeader =>
       ActorFlow.actorRef {
@@ -61,6 +70,11 @@ class AppController @Inject()(graphQL: GraphQL,
       }
   }
 
+  /**
+    * Accepts and processes GraphQL subscription over SSE connection
+    *
+    * @return an 'Action' to handles a request with GraphQL subscription and generated a result to be sent
+    */
   def graphqlSubscriptionOverSSE: Action[AnyContent] = Action.async {
     request =>
 
@@ -79,7 +93,7 @@ class AppController @Inject()(graphQL: GraphQL,
     *
     * @param query     graphql body of request
     * @param variables incoming variables passed in the request
-    * @param operation name of the operation (queries or mutations)
+    * @param operation name of the operation (queries, mutations or subscriptions)
     * @return simple result, which defines the response header and a body ready to send to the client
     */
   def executeQuery(query: String,
