@@ -5,8 +5,19 @@ import play.api.mvc.{AbstractController, ControllerComponents}
 
 import scala.util.Try
 
+/**
+  * Handles and parse GraphQL query.
+  *
+  * @param controllerComponents base controller components dependencies that most controllers rely on
+  */
 class GraphQlHandler(controllerComponents: ControllerComponents) extends AbstractController(controllerComponents) {
 
+  /**
+    * Parses JSON into components of GraphQL query
+    *
+    * @param json an instance of JsValue which will be being parsed
+    * @return a tuple which contains GraphQL query components, namely query body, variables and operation
+    */
   def parseToGraphQLQuery(json: JsValue): Try[(String, Option[String], Option[JsObject])] = {
     val extract: JsValue => (String, Option[String], Option[JsObject]) = query =>
       (

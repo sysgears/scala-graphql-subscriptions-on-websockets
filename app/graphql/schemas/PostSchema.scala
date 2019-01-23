@@ -3,22 +3,28 @@ package graphql.schemas
 import akka.stream.Materializer
 import com.google.inject.Inject
 import graphql.resolvers.PostResolver
-import models.Post
-import monix.execution.Scheduler
+import models.{Event, Post}
 import sangria.macros.derive.{ObjectTypeName, deriveObjectType}
 import sangria.schema._
 import sangria.streaming.akkaStreams._
-import services.{Event, PubSubService}
+import services.PubSubService
+
+import scala.concurrent.ExecutionContext
 
 /**
-  * Contains the definitions of all query and mutations
+  * Contains the definitions of all query, mutations and subscriptions
   * that work with the entity 'Post'. Also it is a construction element
   * for the build graphql schema of the entire application.
   *
-  * @param postResolver an object containing all resolve functions to work with the entity of 'Post'
+  * @param postResolver  an object containing all resolve functions to work with the entity of 'Post'
+  * @param pubSubService an instance of an implementation of PubSubService which is used to publish events
+  *                      or subscribe to some mutations
+  * @param ec            execute program logic asynchronously, typically but not necessarily on a thread pool
+  * @param mat           an instance of an implementation of Materializer SPI (Service Provider Interface)
   */
-class PostSchema @Inject()(postResolver: PostResolver, pubSubService: PubSubService[Event[Post]])
-                          (implicit scheduler: Scheduler, mat: Materializer) {
+class PostSchema @Inject()(postResolver: PostResolver,
+                           pubSubService: PubSubService[Event[Post]])
+                          (implicit ec: ExecutionContext, mat: Materializer) {
 
   /**
     * Convert an Post object to a Sangria graphql object.
@@ -26,6 +32,9 @@ class PostSchema @Inject()(postResolver: PostResolver, pubSubService: PubSubServ
     */
   implicit val PostType: ObjectType[Unit, Post] = deriveObjectType[Unit, Post](ObjectTypeName("Post"))
 
+  /**
+    * Object contains name aliases for GraphQL fields of queries, mutations and subscriptions
+    */
   object Names {
 
     final val POSTS = "posts"

@@ -44,7 +44,7 @@ trait Repository[T] {
     * Delete existing instance by id.
     *
     * @param id an id of some instance
-    * @return true/false result of deleting
+    * @return an instance of Post which was deleted
     */
   def delete(id: Long): Future[Post]
 }

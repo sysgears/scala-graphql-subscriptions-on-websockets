@@ -73,7 +73,8 @@ class AppController @Inject()(graphQL: GraphQL,
   /**
     * Accepts and processes GraphQL subscription over SSE connection
     *
-    * @return an 'Action' to handles a request with GraphQL subscription and generated a result to be sent
+    * @return an 'Action' to handles a request with GraphQL subscription and generates
+    *         a result to be sent to the client
     */
   def graphqlSubscriptionOverSSE: Action[AnyContent] = Action.async {
     request =>

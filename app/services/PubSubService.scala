@@ -4,6 +4,11 @@ import akka.NotUsed
 import akka.stream.scaladsl.Source
 import sangria.schema.Action
 
+/**
+  * A service to publish or subscribe to events
+  *
+  * @tparam T an entity which is published
+  */
 trait PubSubService[T] {
 
   /**
@@ -16,5 +21,3 @@ trait PubSubService[T] {
     */
   def subscribe(eventNames: Seq[String]): Source[Action[Nothing, T], NotUsed]
 }
-
-case class Event[T](name: String, element: T)

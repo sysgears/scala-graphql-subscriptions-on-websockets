@@ -17,12 +17,34 @@ import scala.concurrent.ExecutionContext
 import scala.util.{Failure, Success, Try}
 
 object WebSocketFlowActor {
+
+  /**
+    * Returns an instance of Props for WebSocketFlowActor actor.
+    *
+    * @param outActor             an actor on which will be sent messages from the current actor.
+    *                             Messages received by 'outActor' will be sent on a client over WebSocket connection
+    * @param graphQL              an object containing a graphql schema of the entire application
+    * @param controllerComponents base controller components dependencies that most controllers rely on.
+    * @param ec                   execute program logic asynchronously, typically but not necessarily on a thread pool
+    * @param mat                  an instance of an implementation of Materializer SPI (Service Provider Interface)
+    * @return an instance of Props for WebSocketFlowActor actor
+    */
   def props(outActor: ActorRef, graphQL: GraphQL, controllerComponents: ControllerComponents)
            (implicit ec: ExecutionContext, mat: Materializer): Props = {
     Props(new WebSocketFlowActor(outActor, graphQL, controllerComponents))
   }
 }
 
+/**
+  * An actor which will be received any messages sent by a client over WebSocket connection.
+  *
+  * @param outActor             an actor on which will be sent messages from the current actor.
+  *                             Messages received by 'outActor' will be sent on a client over WebSocket connection
+  * @param graphQL              an object containing a graphql schema of the entire application
+  * @param controllerComponents base controller components dependencies that most controllers rely on
+  * @param ec                   execute program logic asynchronously, typically but not necessarily on a thread pool
+  * @param mat                  an instance of an implementation of Materializer SPI (Service Provider Interface)
+  */
 class WebSocketFlowActor(outActor: ActorRef,
                          graphQL: GraphQL,
                          controllerComponents: ControllerComponents)
@@ -45,6 +67,16 @@ class WebSocketFlowActor(outActor: ActorRef,
       source.map(_.toString).runWith(Sink.actorRef[String](outActor, PoisonPill))
   }
 
+  /**
+    * Analyzes and executes an incoming GraphQL subscription, and returns a stream of elements.
+    *
+    * @param query     graphql body of request
+    * @param graphQL   an object containing a graphql schema of the entire application
+    * @param variables an incoming variables passed in the request
+    * @param operation name of the operation (handle only subscriptions)
+    * @param mat       an instance of an implementation of Materializer SPI (Service Provider Interface)
+    * @return an instance of AkkaSource which represents a stream of elements
+    */
   def executeQuery(query: String,
                    graphQL: GraphQL,
                    variables: Option[JsObject] = None,
