@@ -27,7 +27,7 @@ class PostSchema @Inject()(postResolver: PostResolver,
                           (implicit ec: ExecutionContext, mat: Materializer) {
 
   /**
-    * Convert an Post object to a Sangria graphql object.
+    * Convert a Post object to a Sangria graphql object.
     * Sangria macros deriveObjectType creates an ObjectType with fields found in the Post entity.
     */
   implicit val PostType: ObjectType[Unit, Post] = deriveObjectType[Unit, Post](ObjectTypeName("Post"))

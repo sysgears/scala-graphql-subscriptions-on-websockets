@@ -36,7 +36,7 @@ object WebSocketFlowActor {
 }
 
 /**
-  * An actor which will be received any messages sent by a client over WebSocket connection.
+  * An actor which will receive any messages sent by a client over WebSocket connection.
   *
   * @param outActor             an actor on which will be sent messages from the current actor.
   *                             Messages received by 'outActor' will be sent on a client over WebSocket connection

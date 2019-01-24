@@ -6,7 +6,7 @@ import monix.execution.Scheduler
 import services.{PubSubService, PubSubServiceImpl}
 
 /**
-  * Contains binds of services to their implementations in order to use in Guice context.
+  * Contains binds of services to their implementations in order to use it in DI.
   */
 class PubSubBindings extends AbstractModule {
 

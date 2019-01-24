@@ -4,7 +4,7 @@ import akka.NotUsed
 import akka.stream.scaladsl.Source
 import models.Event
 import monix.execution.Scheduler
-import monix.reactive.subjects.PublishSubject
+import monix.reactive.subjects.{ConcurrentSubject, PublishSubject}
 import sangria.schema.Action
 import utils.Logger
 
@@ -21,8 +21,9 @@ class PubSubServiceImpl[T <: Event[_]](implicit val scheduler: Scheduler) extend
 
   /** @inheritdoc */
   override def publish(event: T): Unit = {
-    log.debug(s"Event published [ $event ]")
-    source.onNext(event)
+    source.onNext(event).map {
+      _ => log.debug(s"Event published [ $event ]")
+    }
   }
 
   /** @inheritdoc */

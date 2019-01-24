@@ -1,4 +1,4 @@
-name := "GraphQL_API_example"
+name := "play_graphql_subscriptions"
 
 version := "1.0"
 
