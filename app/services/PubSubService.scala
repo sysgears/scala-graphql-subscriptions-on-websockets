@@ -2,6 +2,7 @@ package services
 
 import akka.NotUsed
 import akka.stream.scaladsl.Source
+import graphql.UserContext
 import sangria.schema.Action
 
 /**
@@ -19,5 +20,5 @@ trait PubSubService[T] {
   /**
     * Subscribe to the event by specified params.
     */
-  def subscribe(eventNames: Seq[String]): Source[Action[Nothing, T], NotUsed]
+  def subscribe(eventNames: Seq[String])(implicit userContext: UserContext): Source[Action[Nothing, T], NotUsed]
 }

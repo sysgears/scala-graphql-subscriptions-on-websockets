@@ -3,7 +3,7 @@ package controllers
 import akka.actor.{Actor, ActorRef, PoisonPill, Props}
 import akka.stream.Materializer
 import akka.stream.scaladsl.{Sink, Source}
-import graphql.GraphQL
+import graphql.{GraphQL, GraphQLSubscriptions, UserContext}
 import play.api.libs.json._
 import play.api.mvc.ControllerComponents
 import sangria.ast.Document
@@ -31,7 +31,7 @@ object WebSocketFlowActor {
     */
   def props(outActor: ActorRef, graphQL: GraphQL, controllerComponents: ControllerComponents)
            (implicit ec: ExecutionContext, mat: Materializer): Props = {
-    Props(new WebSocketFlowActor(outActor, graphQL, controllerComponents))
+    Props(new WebSocketFlowActor(outActor, graphQL, GraphQLSubscriptions(), controllerComponents))
   }
 }
 
@@ -41,17 +41,25 @@ object WebSocketFlowActor {
   * @param outActor             an actor on which will be sent messages from the current actor.
   *                             Messages received by 'outActor' will be sent on a client over WebSocket connection
   * @param graphQL              an object containing a graphql schema of the entire application
+  * @param graphQLSubscriptions an instance which contains graphql subscriptions which can be canceled on demand
   * @param controllerComponents base controller components dependencies that most controllers rely on
   * @param ec                   execute program logic asynchronously, typically but not necessarily on a thread pool
   * @param mat                  an instance of an implementation of Materializer SPI (Service Provider Interface)
   */
 class WebSocketFlowActor(outActor: ActorRef,
                          graphQL: GraphQL,
+                         graphQLSubscriptions: GraphQLSubscriptions,
                          controllerComponents: ControllerComponents)
                         (implicit ec: ExecutionContext,
                          mat: Materializer)
   extends GraphQlHandler(controllerComponents) with Actor {
 
+  /** @inheritdoc*/
+  override def postStop(): Unit = {
+    graphQLSubscriptions.cancelAll()
+  }
+
+  /** @inheritdoc*/
   override def receive: Receive = {
     case message: String =>
 
@@ -93,6 +101,7 @@ class WebSocketFlowActor(outActor: ActorRef,
             schema = graphQL.Schema,
             queryAst = queryAst,
             variables = variables.getOrElse(Json.obj()),
+            userContext = UserContext(Some(graphQLSubscriptions))
           ).recover {
             case error: QueryAnalysisError => Json.obj("BadRequest" -> error.resolveError)
             case error: ErrorWithResolver => Json.obj("InternalServerError" -> error.resolveError)

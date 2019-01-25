@@ -3,7 +3,7 @@ package controllers
 import akka.actor.ActorSystem
 import akka.stream.Materializer
 import com.google.inject.{Inject, Singleton}
-import graphql.GraphQL
+import graphql.{GraphQL, UserContext}
 import play.api.libs.EventSource
 import play.api.libs.json._
 import play.api.libs.streams.ActorFlow
@@ -13,7 +13,6 @@ import sangria.ast.OperationType.{Mutation, Query, Subscription}
 import sangria.execution._
 import sangria.marshalling.playJson._
 import sangria.parser.QueryParser
-import utils.Logger
 
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success}
@@ -34,8 +33,7 @@ class AppController @Inject()(graphQL: GraphQL,
                               controllerComponents: ControllerComponents)
                              (implicit val ec: ExecutionContext,
                               as: ActorSystem,
-                              mat: Materializer) extends GraphQlHandler(controllerComponents)
-  with Logger {
+                              mat: Materializer) extends GraphQlHandler(controllerComponents) {
 
   /**
     * Renders an page with an in-browser IDE for exploring GraphQL.
@@ -111,7 +109,8 @@ class AppController @Inject()(graphQL: GraphQL,
             val source: AkkaSource[JsValue] = Executor.execute(
               schema = graphQL.Schema,
               queryAst = queryAst,
-              variables = variables.getOrElse(Json.obj())
+              variables = variables.getOrElse(Json.obj()),
+              userContext = UserContext()
             )
             Future(Ok.chunked(source via EventSource.flow).as(EVENT_STREAM))
 
@@ -120,7 +119,8 @@ class AppController @Inject()(graphQL: GraphQL,
               .execute(
                 schema = graphQL.Schema,
                 queryAst = queryAst,
-                variables = variables.getOrElse(Json.obj())
+                variables = variables.getOrElse(Json.obj()),
+                userContext = UserContext()
               )
               .map(Ok(_))
               .recover {

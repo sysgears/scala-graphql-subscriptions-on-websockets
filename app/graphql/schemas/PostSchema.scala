@@ -2,6 +2,7 @@ package graphql.schemas
 
 import akka.stream.Materializer
 import com.google.inject.Inject
+import graphql.UserContext
 import graphql.resolvers.PostResolver
 import models.{Event, Post}
 import sangria.macros.derive.{ObjectTypeName, deriveObjectType}
@@ -50,7 +51,7 @@ class PostSchema @Inject()(postResolver: PostResolver,
   /**
     * List of queries to work with the entity of Post
     */
-  val Queries: List[Field[Unit, Unit]] = List(
+  val Queries: List[Field[UserContext, Unit]] = List(
     Field(
       name = POSTS,
       fieldType = ListType(PostType),
@@ -69,7 +70,7 @@ class PostSchema @Inject()(postResolver: PostResolver,
   /**
     * List of mutations to work with the entity of Post.
     */
-  val Mutations: List[Field[Unit, Unit]] = List(
+  val Mutations: List[Field[UserContext, Unit]] = List(
     Field(
       name = ADD_POST,
       fieldType = PostType,
@@ -119,12 +120,13 @@ class PostSchema @Inject()(postResolver: PostResolver,
   /**
     * List of subscriptions to work with the entity of Post.
     */
-  val Subscriptions: List[Field[Unit, Unit]] = List(
+  val Subscriptions: List[Field[UserContext, Unit]] = List(
     Field.subs(
       name = POSTS_UPDATED,
       fieldType = PostType,
-      resolve = _ => {
-        pubSubService.subscribe(Seq(ADD_POST, DELETE_POST, EDIT_POST)).map(action => action.map(e => e.element))
+      resolve = sangriaContext => {
+        pubSubService.subscribe(Seq(ADD_POST, DELETE_POST, EDIT_POST))(sangriaContext.ctx)
+          .map(action => action.map(e => e.element))
       }
     )
   )
