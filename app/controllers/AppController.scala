@@ -3,7 +3,7 @@ package controllers
 import akka.actor.ActorSystem
 import akka.stream.Materializer
 import com.google.inject.{Inject, Singleton}
-import graphql.{GraphQL, UserContext}
+import graphql.{GraphQL, GraphQLSubscriptions, UserContext}
 import play.api.libs.EventSource
 import play.api.libs.json._
 import play.api.libs.streams.ActorFlow
@@ -105,12 +105,12 @@ class AppController @Inject()(graphQL: GraphQL,
           case Some(Subscription) =>
             import sangria.execution.ExecutionScheme.Stream
             import sangria.streaming.akkaStreams._
-
+            val graphqlSubs = GraphQLSubscriptions()
             val source: AkkaSource[JsValue] = Executor.execute(
               schema = graphQL.Schema,
               queryAst = queryAst,
               variables = variables.getOrElse(Json.obj()),
-              userContext = UserContext()
+              userContext = UserContext(Some(graphqlSubs))
             )
             Future(Ok.chunked(source via EventSource.flow).as(EVENT_STREAM))
 
