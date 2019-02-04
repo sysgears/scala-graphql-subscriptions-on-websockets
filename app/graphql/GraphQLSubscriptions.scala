@@ -1,28 +1,47 @@
 package graphql
 
 import monix.execution.Cancelable
-import java.util.concurrent.ConcurrentLinkedQueue
+import play.api.Logger
 
-import scala.collection.concurrent.TrieMap
-import scala.collection.mutable
+import scala.collection.mutable.ArrayBuffer
 
+/**
+  * A class which contains a list of subscriptions which was opened
+  * during one WebSocket connection by a user and which can be canceled on demand.
+  *
+  */
 case class GraphQLSubscriptions() {
 
-  private[this] val subscriptions: ConcurrentLinkedQueue[Cancelable] = new ConcurrentLinkedQueue()
+  private[this] val subscriptions: ArrayBuffer[Cancelable] = ArrayBuffer.empty[Cancelable]
+  private var closed = false
 
-  /** Adds a new operationId/cancelable pair to subscriptions.
-    * If the subscriptions already contains a
-    * mapping for the operationId, it will be overridden by the new cancelable.
+  /**
+    * Adds a new cancelable to subscriptions.
     */
-  def add(cancelable: Cancelable): Unit = {
-    this.subscriptions.add(cancelable)
+  def add(cancelable: Cancelable): Unit = this.synchronized {
+    if (!closed) {
+      cancelable +: subscriptions
+    } else {
+      Logger.debug("WebSocket connection was already closed!")
+    }
   }
 
-  def cancelAll(): Unit = {
-    this.subscriptions.forEach(_.cancel())
+  /**
+    * Cancels all subscriptions opened during one WebSocket connection
+    * and clears the subscriptions queue.
+    */
+  def cancelAll(): Unit = this.synchronized {
+    subscriptions.foreach(_.cancel())
+    subscriptions.clear()
+    closed = true
   }
 
-  def size: Int = {
+  /**
+    * Returns a number of opened subscriptions during one WebSocket connection.
+    *
+    * @return a number of opened subscriptions
+    */
+  def subscriptionsCount: Int = {
     this.subscriptions.size
   }
 }
