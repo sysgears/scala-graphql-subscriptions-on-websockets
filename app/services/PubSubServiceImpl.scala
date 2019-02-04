@@ -6,9 +6,9 @@ import akka.stream.scaladsl.Source
 import graphql.UserContext
 import models.Event
 import monix.execution.Scheduler
-import monix.reactive.subjects.{ConcurrentSubject, PublishSubject}
-import sangria.schema.Action
+import monix.reactive.subjects.PublishSubject
 import play.api.Logger
+import sangria.schema.Action
 
 /**
   * An implementation of PubSubService.
@@ -18,11 +18,11 @@ import play.api.Logger
   * @tparam T an entity which is published
   */
 class PubSubServiceImpl[T <: Event[_]](implicit val scheduler: Scheduler) extends PubSubService[T] {
-  lazy val source: PublishSubject[T] = PublishSubject[T]
+  lazy val publisher: PublishSubject[T] = PublishSubject[T]
 
   /** @inheritdoc */
   override def publish(event: T): Unit = {
-    source.onNext(event).map {
+    publisher.onNext(event).map {
       _ => Logger.debug(s"Event published [ $event ]")
     }
   }
@@ -35,9 +35,10 @@ class PubSubServiceImpl[T <: Event[_]](implicit val scheduler: Scheduler) extend
       .actorRef[T](16, OverflowStrategy.dropHead)
       .mapMaterializedValue {
         actorRef =>
-          userContext.maybeGraphQlSubs.foreach {
-            graphqlSubs =>
-              graphqlSubs.add(source.subscribe(new ActorRefObserver[T](actorRef)))
+          userContext.graphQlSubs.foreach {
+            subs =>
+              val cancelable = publisher.subscribe(new ActorRefObserver[T](actorRef))
+              subs.add(cancelable)
           }
           NotUsed
       }

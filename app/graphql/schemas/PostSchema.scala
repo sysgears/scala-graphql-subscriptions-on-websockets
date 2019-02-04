@@ -82,10 +82,12 @@ class PostSchema @Inject()(postResolver: PostResolver,
         postResolver.addPost(
           sangriaContext.args.arg[String]("title"),
           sangriaContext.args.arg[String]("content")
-        ).map(createdPost => {
-          pubSubService.publish(new Event[Post](ADD_POST, createdPost))
-          createdPost
-        })
+        ).map {
+          createdPost =>
+            pubSubService.publish(new Event[Post](ADD_POST, createdPost))
+            createdPost
+
+        }
     ),
     Field(
       name = EDIT_POST,
@@ -102,7 +104,11 @@ class PostSchema @Inject()(postResolver: PostResolver,
             sangriaContext.args.arg[String]("title"),
             sangriaContext.args.arg[String]("content")
           )
-        )
+        ).map {
+          updatedPost =>
+            pubSubService.publish(new Event[Post](EDIT_POST, updatedPost))
+            updatedPost
+        }
     ),
     Field(
       name = DELETE_POST,
@@ -113,6 +119,11 @@ class PostSchema @Inject()(postResolver: PostResolver,
       resolve = sangriaContext => {
         val postId = sangriaContext.args.arg[Long]("id")
         postResolver.deletePost(postId)
+          .map {
+            deletedPost =>
+              pubSubService.publish(new Event[Post](DELETE_POST, deletedPost))
+              deletedPost
+          }
       }
     )
   )
