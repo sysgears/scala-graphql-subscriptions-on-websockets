@@ -34,31 +34,33 @@ class PostSchema @Inject()(postResolver: PostResolver,
   implicit val PostType: ObjectType[Unit, Post] = deriveObjectType[Unit, Post](ObjectTypeName("Post"))
 
   /**
-    * Object contains name aliases for GraphQL fields of queries, mutations and subscriptions
+    * Enumeration with names for GraphQL fields of queries, mutations, and subscriptions
     */
-  object Names {
+  object FieldNames extends Enumeration {
 
-    final val POSTS = "posts"
-    final val ADD_POST = "addPost"
-    final val FIND_POST = "findPost"
-    final val DELETE_POST = "deletePost"
-    final val EDIT_POST = "editPost"
-    final val POSTS_UPDATED = "postsUpdated"
+    val posts: Value = Value("posts")
+    val addPost: Value = Value("addPost")
+    val findPost: Value = Value("findPost")
+    val deletePost: Value = Value("deletePost")
+    val editPost: Value = Value("editPost")
+    val postsUpdated: Value = Value("postsUpdated")
+
+    implicit def valueToString(value: Value): String = value.toString
   }
 
-  import Names._
+  import FieldNames._
 
   /**
     * List of queries to work with the entity of Post
     */
   val Queries: List[Field[UserContext, Unit]] = List(
     Field(
-      name = POSTS,
+      name = posts,
       fieldType = ListType(PostType),
       resolve = _ => postResolver.posts
     ),
     Field(
-      name = FIND_POST,
+      name = findPost,
       fieldType = OptionType(PostType),
       arguments = List(
         Argument("id", LongType)
@@ -72,7 +74,7 @@ class PostSchema @Inject()(postResolver: PostResolver,
     */
   val Mutations: List[Field[UserContext, Unit]] = List(
     Field(
-      name = ADD_POST,
+      name = addPost,
       fieldType = PostType,
       arguments = List(
         Argument("title", StringType),
@@ -84,13 +86,13 @@ class PostSchema @Inject()(postResolver: PostResolver,
           sangriaContext.args.arg[String]("content")
         ).map {
           createdPost =>
-            pubSubService.publish(new Event[Post](ADD_POST, createdPost))
+            pubSubService.publish(new Event[Post](addPost, createdPost))
             createdPost
 
         }
     ),
     Field(
-      name = EDIT_POST,
+      name = editPost,
       fieldType = PostType,
       arguments = List(
         Argument("id", LongType),
@@ -106,12 +108,12 @@ class PostSchema @Inject()(postResolver: PostResolver,
           )
         ).map {
           updatedPost =>
-            pubSubService.publish(new Event[Post](EDIT_POST, updatedPost))
+            pubSubService.publish(new Event[Post](editPost, updatedPost))
             updatedPost
         }
     ),
     Field(
-      name = DELETE_POST,
+      name = deletePost,
       fieldType = PostType,
       arguments = List(
         Argument("id", LongType)
@@ -121,7 +123,7 @@ class PostSchema @Inject()(postResolver: PostResolver,
         postResolver.deletePost(postId)
           .map {
             deletedPost =>
-              pubSubService.publish(new Event[Post](DELETE_POST, deletedPost))
+              pubSubService.publish(new Event[Post](deletePost, deletedPost))
               deletedPost
           }
       }
@@ -133,10 +135,10 @@ class PostSchema @Inject()(postResolver: PostResolver,
     */
   val Subscriptions: List[Field[UserContext, Unit]] = List(
     Field.subs(
-      name = POSTS_UPDATED,
+      name = postsUpdated,
       fieldType = PostType,
       resolve = sangriaContext => {
-        pubSubService.subscribe(Seq(ADD_POST, DELETE_POST, EDIT_POST))(sangriaContext.ctx)
+        pubSubService.subscribe(Seq(addPost, deletePost, editPost))(sangriaContext.ctx)
           .map(action => action.map(e => e.element))
       }
     )
