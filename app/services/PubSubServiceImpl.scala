@@ -18,11 +18,12 @@ import sangria.schema.Action
   * @tparam T an entity which is published
   */
 class PubSubServiceImpl[T <: Event[_]](implicit val scheduler: Scheduler) extends PubSubService[T] {
-  lazy val publisher: PublishSubject[T] = PublishSubject[T]
+  private val subject: PublishSubject[T] = PublishSubject[T]
+  private val bufferSize = 42
 
   /** @inheritdoc */
   override def publish(event: T): Unit = {
-    publisher.onNext(event).map {
+    subject.onNext(event).map {
       _ => Logger.debug(s"Event published [ $event ]")
     }
   }
@@ -32,12 +33,12 @@ class PubSubServiceImpl[T <: Event[_]](implicit val scheduler: Scheduler) extend
                         (implicit userContext: UserContext): Source[Action[Nothing, T], NotUsed] = {
     require(eventNames.nonEmpty)
     Source
-      .actorRef[T](16, OverflowStrategy.dropHead)
+      .actorRef[T](bufferSize, OverflowStrategy.dropHead)
       .mapMaterializedValue {
         actorRef =>
           userContext.graphQlSubs.foreach {
             subs =>
-              val cancelable = publisher.subscribe(new ActorRefObserver[T](actorRef))
+              val cancelable = subject.subscribe(new ActorRefObserver[T](actorRef))
               subs.add(cancelable)
           }
           NotUsed
