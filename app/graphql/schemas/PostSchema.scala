@@ -4,7 +4,7 @@ import akka.stream.Materializer
 import com.google.inject.Inject
 import graphql.UserContext
 import graphql.resolvers.PostResolver
-import models.{Event, Post}
+import models.{Post, PostEvent}
 import sangria.macros.derive.{ObjectTypeName, deriveObjectType}
 import sangria.schema._
 import sangria.streaming.akkaStreams._
@@ -24,7 +24,7 @@ import scala.concurrent.ExecutionContext
   * @param mat           an instance of an implementation of Materializer SPI (Service Provider Interface)
   */
 class PostSchema @Inject()(postResolver: PostResolver,
-                           pubSubService: PubSubService[Event[Post]])
+                           pubSubService: PubSubService[PostEvent])
                           (implicit ec: ExecutionContext, mat: Materializer) {
 
   /**
@@ -32,6 +32,7 @@ class PostSchema @Inject()(postResolver: PostResolver,
     * Sangria macros deriveObjectType creates an ObjectType with fields found in the Post entity.
     */
   implicit val PostType: ObjectType[Unit, Post] = deriveObjectType[Unit, Post](ObjectTypeName("Post"))
+  implicit val PostEventType: ObjectType[Unit, PostEvent] = deriveObjectType[Unit, PostEvent](ObjectTypeName("PostEvent"))
 
   /**
     * Enumeration with names for GraphQL fields of queries, mutations, and subscriptions
@@ -86,7 +87,7 @@ class PostSchema @Inject()(postResolver: PostResolver,
           sangriaContext.args.arg[String]("content")
         ).map {
           createdPost =>
-            pubSubService.publish(new Event[Post](addPost, createdPost))
+            pubSubService.publish(PostEvent(addPost, createdPost))
             createdPost
 
         }
@@ -108,7 +109,7 @@ class PostSchema @Inject()(postResolver: PostResolver,
           )
         ).map {
           updatedPost =>
-            pubSubService.publish(new Event[Post](editPost, updatedPost))
+            pubSubService.publish(PostEvent(editPost, updatedPost))
             updatedPost
         }
     ),
@@ -123,7 +124,7 @@ class PostSchema @Inject()(postResolver: PostResolver,
         postResolver.deletePost(postId)
           .map {
             deletedPost =>
-              pubSubService.publish(new Event[Post](deletePost, deletedPost))
+              pubSubService.publish(PostEvent(deletePost, deletedPost))
               deletedPost
           }
       }
@@ -136,10 +137,9 @@ class PostSchema @Inject()(postResolver: PostResolver,
   val Subscriptions: List[Field[UserContext, Unit]] = List(
     Field.subs(
       name = postsUpdated,
-      fieldType = PostType,
+      fieldType = PostEventType,
       resolve = sangriaContext => {
         pubSubService.subscribe(Seq(addPost, deletePost, editPost))(sangriaContext.ctx)
-          .map(action => action.map(e => e.element))
       }
     )
   )

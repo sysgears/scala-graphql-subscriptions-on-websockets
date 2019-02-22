@@ -17,7 +17,7 @@ import sangria.schema.Action
   *                  schedule the execution of units of work to run with a delay or periodically
   * @tparam T an entity which is published
   */
-class PubSubServiceImpl[T <: Event[_]](implicit val scheduler: Scheduler) extends PubSubService[T] {
+class PubSubServiceImpl[T <: Event](implicit val scheduler: Scheduler) extends PubSubService[T] {
   private val subject: PublishSubject[T] = PublishSubject[T]
   private val bufferSize = 42
 

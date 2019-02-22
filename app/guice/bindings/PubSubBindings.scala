@@ -1,7 +1,7 @@
 package guice.bindings
 
 import com.google.inject.{AbstractModule, Provides, Singleton}
-import models.{Event, Post}
+import models.PostEvent
 import monix.execution.Scheduler
 import services.{PubSubService, PubSubServiceImpl}
 
@@ -24,7 +24,7 @@ class PubSubBindings extends AbstractModule {
     */
   @Provides
   @Singleton
-  def pubSubService(implicit scheduler: Scheduler): PubSubService[Event[Post]] = {
-    new PubSubServiceImpl[Event[Post]]
+  def pubSubService(implicit scheduler: Scheduler): PubSubService[PostEvent] = {
+    new PubSubServiceImpl[PostEvent]
   }
 }
