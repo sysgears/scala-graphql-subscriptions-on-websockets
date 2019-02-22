@@ -1,4 +1,4 @@
-package guice.bindings
+package guice.module
 
 import com.google.inject.{AbstractModule, Provides, Singleton}
 import models.PostEvent
@@ -8,7 +8,7 @@ import services.{PubSubService, PubSubServiceImpl}
 /**
   * Contains binds of services to their implementations in order to use it in DI.
   */
-class PubSubBindings extends AbstractModule {
+class PubSubModule extends AbstractModule {
 
   /** @inheritdoc */
   override def configure(): Unit = {
