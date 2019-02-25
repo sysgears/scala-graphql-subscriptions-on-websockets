@@ -18,13 +18,14 @@ import sangria.schema.Action
   * @tparam T an entity which is published
   */
 class PubSubServiceImpl[T <: Event](implicit val scheduler: Scheduler) extends PubSubService[T] {
+  private val log = Logger(classOf[PubSubServiceImpl[T]])
   private val subject: PublishSubject[T] = PublishSubject[T]
   private val bufferSize = 42
 
   /** @inheritdoc */
   override def publish(event: T): Unit = {
     subject.onNext(event).map {
-      _ => Logger.debug(s"Event published [ $event ]")
+      _ => log.info(s"Event published [ $event ]")
     }
   }
 
@@ -49,7 +50,7 @@ class PubSubServiceImpl[T <: Event](implicit val scheduler: Scheduler) extends P
       }
       .map {
         event =>
-          Logger.debug(s"Sending event [ $event ] to client ...")
+          log.info(s"Sending event [ $event ] to client ...")
           Action(event)
       }
   }

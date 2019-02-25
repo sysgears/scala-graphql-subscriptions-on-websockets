@@ -10,8 +10,9 @@ import scala.collection.mutable.ArrayBuffer
   * during one WebSocket connection by a user and which can be canceled on demand.
   *
   */
-case class GraphQLSubscriptions() {
+case class GraphQLSubscriptions(){
 
+  private val log = Logger(classOf[GraphQLSubscriptions])
   private[this] val subscriptions: ArrayBuffer[Cancelable] = ArrayBuffer.empty[Cancelable]
   private var closed = false
 
@@ -22,7 +23,7 @@ case class GraphQLSubscriptions() {
     if (!closed) {
       cancelable +: subscriptions
     } else {
-      Logger.debug("WebSocket connection was already closed!")
+      log.info("WebSocket connection was already closed!")
     }
   }
 
