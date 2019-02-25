@@ -53,5 +53,5 @@ class PostResolver @Inject()(postRepository: PostRepository,
     * @param id a post id
     * @return boolean result
     */
-  def deletePost(id: Long): Future[Post] = postRepository.delete(id)
+  def deletePost(id: Long): Future[Option[Post]] = postRepository.delete(id)
 }

@@ -1,4 +1,4 @@
-package guice.module
+package modules
 
 import com.google.inject.{AbstractModule, Provides, Singleton}
 import models.PostEvent

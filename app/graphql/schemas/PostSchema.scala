@@ -115,7 +115,7 @@ class PostSchema @Inject()(postResolver: PostResolver,
     ),
     Field(
       name = deletePost,
-      fieldType = PostType,
+      fieldType = OptionType(PostType),
       arguments = List(
         Argument("id", LongType)
       ),
@@ -123,9 +123,9 @@ class PostSchema @Inject()(postResolver: PostResolver,
         val postId = sangriaContext.args.arg[Long]("id")
         postResolver.deletePost(postId)
           .map {
-            deletedPost =>
-              pubSubService.publish(PostEvent(deletePost, deletedPost))
-              deletedPost
+            maybeDeletedPost =>
+              maybeDeletedPost.foreach(deletedPost => pubSubService.publish(PostEvent(deletePost, deletedPost)))
+              maybeDeletedPost
           }
       }
     )
